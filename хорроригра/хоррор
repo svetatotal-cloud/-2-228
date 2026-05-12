@@ -62,6 +62,11 @@ ENEMY_BULLET_NORMAL_DIST = 760
 ENEMY_BULLET_BOSS_DIST = 920
 ENEMY_BULLET_BOSS_LONG_DIST = 1450
 BOSS_LONG_SHOT_CHANCE = 0.20
+PLAYER_REGEN_TIME = 25.0
+BOT_HOMING_CHANCE = 0.20
+BOSS_HOMING_CHANCE = 1 / 3
+HOMING_FOV = math.radians(45)
+HOMING_TURN_SPEED = math.radians(4.2)
 
 class Particle:
     def __init__(self, x, y, color, speed=None, decay=0.04):
@@ -84,6 +89,13 @@ class Loot:
     def __init__(self, x, y, type):
         self.pos = [x, y]
         self.type = type
+
+def angle_diff(a, b):
+    return (a - b + math.pi) % (math.pi * 2) - math.pi
+
+def spawn_bullet_break(x, y, color, count=12, speed=3):
+    for _ in range(count):
+        g.particles.append(Particle(x, y, color, random.uniform(1, speed), random.uniform(0.035, 0.07)))
 
 class Robot:
     def __init__(self, x, y, level, is_boss=False):
@@ -111,8 +123,11 @@ class Robot:
         min_shoot = max(0.2, 1.0 - shoot_reduction)
         max_shoot = max(0.5, 3.0 - shoot_reduction)
         if self.is_boss:
-            min_shoot *= 0.75
-            max_shoot *= 0.75
+            min_shoot *= 0.5
+            max_shoot *= 0.5
+        else:
+            min_shoot *= (1 / 1.5)
+            max_shoot *= (1 / 1.5)
         self.shoot_timer = random.uniform(min_shoot, max_shoot)
 
         self.strafe_dir = random.choice([-1, 1])
@@ -160,9 +175,11 @@ class Robot:
             enemy_speed = 7.5
             enemy_max_d = ENEMY_BULLET_NORMAL_DIST
             enemy_is_long = False
+            enemy_is_homing = random.random() < BOT_HOMING_CHANCE
             if self.is_boss:
                 enemy_speed = 8.8
                 enemy_max_d = ENEMY_BULLET_BOSS_DIST
+                enemy_is_homing = random.random() < BOSS_HOMING_CHANCE
                 if random.random() < BOSS_LONG_SHOT_CHANCE:
                     enemy_speed = 10.5
                     enemy_max_d = ENEMY_BULLET_BOSS_LONG_DIST
@@ -171,14 +188,19 @@ class Robot:
 
             g.enemy_bullets.append({'x':self.pos[0], 'y':self.pos[1],
                                   'vx':math.cos(fire_ang)*enemy_speed, 'vy':math.sin(fire_ang)*enemy_speed,
-                                  'dist':0, 'max_d':enemy_max_d, 'long':enemy_is_long, 'boss':self.is_boss})
+                                  'dist':0, 'max_d':enemy_max_d, 'long':enemy_is_long, 'boss':self.is_boss,
+                                  'homing':enemy_is_homing, 'homing_active':enemy_is_homing,
+                                  'angle':fire_ang, 'speed':enemy_speed})
 
             shoot_reduce = self.level * 0.05
             cooldown_min = max(0.2, 1.2 - shoot_reduce)
             cooldown_max = max(0.5, 2.8 - shoot_reduce)
             if self.is_boss:
-                cooldown_min *= 0.65
-                cooldown_max *= 0.65
+                cooldown_min *= 0.5
+                cooldown_max *= 0.5
+            else:
+                cooldown_min *= (1 / 1.5)
+                cooldown_max *= (1 / 1.5)
             self.shoot_timer = random.uniform(cooldown_min, cooldown_max)
         elif self.shoot_timer <= 0 and (player_hidden_by_dash or robot_blinded_by_flash):
             self.shoot_timer = 0.18
@@ -229,6 +251,7 @@ class Game:
         self.dash_invisibility_timer = 0
         self.boss_room_warning_timer = 0
         self.floor_pulse = random.uniform(0, math.pi * 2)
+        self.regen_timer = PLAYER_REGEN_TIME
 
     def generate_level(self, next_room=False):
         if next_room:
@@ -244,6 +267,7 @@ class Game:
             self.death_anim_timer = 0
             self.death_delay_timer = 0
             self.dash_invisibility_timer = 0
+            self.regen_timer = PLAYER_REGEN_TIME
 
         if not self.music_playing:
             snd_lost.play(loops=-1)
@@ -535,10 +559,14 @@ def draw():
         pygame.draw.circle(screen.surface, CLR_RELOAD, (int(b['x']+ox), int(b['y']+oy)), 4)
     for eb in g.enemy_bullets:
         eb_color = CLR_GOLD if eb.get('long') else (200, 0, 0)
+        if eb.get('homing_active'):
+            eb_color = (255, 60, 210)
         trail_color = (230, 120, 20) if eb.get('long') else (110, 0, 0)
         pygame.draw.line(screen.surface, trail_color, (int(eb['x']-eb['vx']*0.7+ox), int(eb['y']-eb['vy']*0.7+oy)), (int(eb['x']+ox), int(eb['y']+oy)), 3)
         pygame.draw.circle(screen.surface, (150, 150, 150), (int(eb['x']+ox), int(eb['y']+oy)), 6)
         pygame.draw.circle(screen.surface, eb_color, (int(eb['x']+ox), int(eb['y']+oy)), 4)
+        if eb.get('homing_active'):
+            pygame.draw.circle(screen.surface, (255, 60, 210), (int(eb['x']+ox), int(eb['y']+oy)), 12, 1)
 
     if g.f_charging:
         mx, my = pygame.mouse.get_pos()
@@ -577,6 +605,7 @@ def draw():
     if g.ult_cooldown > 0: screen.draw.text(f"ULT: {round(g.ult_cooldown, 1)}s", (40, 140), fontsize=30, color="red")
     if g.adrenaline_timer > 0: screen.draw.text(f"ADRENALINE: {round(g.adrenaline_timer, 1)}s", (40, 170), fontsize=24, color="orange")
     if g.is_dashing: screen.draw.text("INVISIBLE", (40, 200), fontsize=24, color="cyan")
+    if g.hp < 3: screen.draw.text(f"REGEN: {math.ceil(g.regen_timer)}s", (40, 230), fontsize=24, color="green")
     if g.boss_room_warning_timer > 0: screen.draw.text("BOSS ARENA: NO INNER WALLS", center=(WIDTH//2, 95), fontsize=34, color="red")
     pygame.draw.rect(screen.surface, (60,60,60), (40, HEIGHT-100, 180, 12), border_radius=4)
     pygame.draw.rect(screen.surface, CLR_LIGHT_UI, (42, HEIGHT-98, 1.76*g.light, 8), border_radius=3)
@@ -635,6 +664,15 @@ def update():
     if g.shield_timer > 0: g.shield_timer -= 1/60
     if g.ult_cooldown > 0: g.ult_cooldown -= 1/60
     if g.adrenaline_timer > 0: g.adrenaline_timer -= 1/60 # Уменьшаем таймер адреналина
+    if g.hp < 3:
+        g.regen_timer -= 1/60
+        if g.regen_timer <= 0:
+            g.hp = min(3, g.hp + 1)
+            g.regen_timer = PLAYER_REGEN_TIME
+            g.light_flash = max(g.light_flash, 0.6)
+            for _ in range(35): g.particles.append(Particle(g.pos[0], g.pos[1], (40, 180, 70), random.uniform(1, 4)))
+    else:
+        g.regen_timer = PLAYER_REGEN_TIME
 
     base_move_speed = 6.8
     if g.adrenaline_timer > 0: # Адреналин активен только пока идет таймер
@@ -699,12 +737,28 @@ def update():
                 g.music_playing = False
 
     for eb in g.enemy_bullets[:]:
+        if eb.get('homing_active'):
+            if g.is_dashing:
+                eb['homing_active'] = False
+            else:
+                target_ang = math.atan2(g.pos[1]-eb['y'], g.pos[0]-eb['x'])
+                diff = angle_diff(target_ang, eb.get('angle', math.atan2(eb['vy'], eb['vx'])))
+                if abs(diff) <= HOMING_FOV:
+                    turn = max(-HOMING_TURN_SPEED, min(HOMING_TURN_SPEED, diff))
+                    eb['angle'] = eb.get('angle', math.atan2(eb['vy'], eb['vx'])) + turn
+                    eb['vx'] = math.cos(eb['angle']) * eb.get('speed', math.hypot(eb['vx'], eb['vy']))
+                    eb['vy'] = math.sin(eb['angle']) * eb.get('speed', math.hypot(eb['vx'], eb['vy']))
+                else:
+                    eb['homing_active'] = False
         eb['x']+=eb['vx']; eb['y']+=eb['vy']
         eb['dist'] = eb.get('dist', 0) + math.hypot(eb['vx'], eb['vy'])
         if eb['dist'] > eb.get('max_d', ENEMY_BULLET_NORMAL_DIST):
+            spawn_bullet_break(eb['x'], eb['y'], CLR_GOLD if eb.get('long') else (160, 0, 0), 15 if eb.get('homing') else 10, 4)
             g.enemy_bullets.remove(eb)
             continue
-        if any(w.collidepoint(eb['x'], eb['y']) for w in g.walls): g.enemy_bullets.remove(eb); continue
+        if any(w.collidepoint(eb['x'], eb['y']) for w in g.walls):
+            spawn_bullet_break(eb['x'], eb['y'], (120, 40, 40), 9, 3)
+            g.enemy_bullets.remove(eb); continue
         if math.hypot(eb['x']-g.pos[0], eb['y']-g.pos[1]) < 22 and g.shield_timer <= 0 and not g.is_dashing:
             old_hp = g.hp
             g.hp -= 1; g.damage_flash = 1.0; g.shield_timer = 1.0; g.shake = 15; g.enemy_bullets.remove(eb)
@@ -742,6 +796,7 @@ def update():
             for _ in range(5): g.particles.append(Particle(b['x'], b['y'], (100,100,100), 2))
 
         if b['dist'] > b['max_d']:
+            spawn_bullet_break(b['x'], b['y'], CLR_RELOAD, 14, 4)
             if b in g.bullets: g.bullets.remove(b)
             continue
 

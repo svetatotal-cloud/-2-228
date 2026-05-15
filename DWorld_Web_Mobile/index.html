@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#050108">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="D-World">
+  <title>D-World Mobile</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="D-World mobile game"></canvas>
+
+  <section id="menu" class="screen">
+    <div class="brand">
+      <span class="kicker">mobile arena edition</span>
+      <h1>D-WORLD</h1>
+      <p>Neon rooms, ricochet shots, dash invisibility, and a boss training arena made for thumbs.</p>
+    </div>
+    <div class="actions">
+      <button id="playCampaign" class="primary">Play Campaign</button>
+      <button id="playTraining">Boss Training</button>
+      <button id="fullScreenBtn">Full Screen</button>
+      <button id="musicBtn">Music: On</button>
+    </div>
+    <div class="stats">
+      <span>Best room <b id="bestRoom">1</b></span>
+      <span>Swipe right side to aim</span>
+    </div>
+  </section>
+
+  <section id="pause" class="screen compact hidden">
+    <h2>Paused</h2>
+    <button id="resumeBtn" class="primary">Resume</button>
+    <button id="pauseMenuBtn">Main Menu</button>
+  </section>
+
+  <section id="gameOver" class="screen compact hidden">
+    <h2>You Are Dead</h2>
+    <p id="runSummary">Room 1</p>
+    <button id="retryBtn" class="primary">Retry</button>
+    <button id="deathMenuBtn">Main Menu</button>
+  </section>
+
+  <div id="hud" class="hud hidden">
+    <div class="hud-left">
+      <span id="hpText">HP 3</span>
+      <span id="ammoText">AMMO 60</span>
+      <span id="roomText">ROOM 1</span>
+    </div>
+    <button id="pauseBtn">II</button>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

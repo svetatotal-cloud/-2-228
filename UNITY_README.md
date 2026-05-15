@@ -4,6 +4,10 @@ This repo now has a one-file Unity port:
 
 `DWorldUnity.cs`
 
+And a full Unity folder with music:
+
+`DWorld_Full_Unity`
+
 How to run:
 
 1. Create a new Unity 2D or 3D project.
@@ -13,6 +17,8 @@ How to run:
 The script can auto-create its runtime object. If auto-start is disabled in your Unity version, add an empty GameObject and attach `DWorldUnity` manually.
 
 No external images, textures, audio files, prefabs, or folders are required. The game draws its player, enemies, bullets, walls, menu, and UI procedurally from code.
+
+If you want music too, drag the whole `DWorld_Full_Unity` folder into the Unity `Assets` window instead of using only the single script.
 
 PC controls:
 
@@ -38,6 +44,11 @@ Phone setup:
 - The script forces landscape orientation.
 - The game scales itself to the current screen, so there is no resolution menu.
 - For a Google Play build, set Unity to Android in Build Settings, then build normally.
+
+Build outputs:
+
+- `.apk` - can be sent in Telegram and installed on Android if the phone allows unknown apps.
+- `.aab` - used for uploading to Google Play Console.
 
 Important monetization note:
 
